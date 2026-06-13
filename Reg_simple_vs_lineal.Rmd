@@ -1,0 +1,363 @@
+---
+title: "Regresión lineal simple vs regresión logística simple"
+author: "brayan alexander diaz lievano"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+# Objetivo de la práctica
+
+En esta práctica se busca comparar, de manera visual y sencilla, la diferencia entre un modelo de **regresión lineal simple** y un modelo de **regresión logística simple**.
+
+La idea principal es la siguiente:
+
+- La **regresión lineal simple** se usa cuando la variable respuesta es numérica y continua.
+- La **regresión logística simple** se usa cuando la variable respuesta es binaria, por ejemplo: sí/no, aprueba/no aprueba, enfermedad/no enfermedad, default/no default.
+
+En esta práctica veremos qué ocurre si intentamos ajustar una recta a una variable binaria y por qué la regresión logística es una mejor alternativa.
+
+# 1. Simulación de datos sencillos
+
+Primero generamos datos artificiales. La variable `x` representa una característica numérica. La variable `y` solo puede tomar los valores 0 y 1.
+
+```{r simulacion}
+set.seed(123)
+
+x <- rnorm(150, mean = 10, sd = 4)
+error <- rnorm(150, mean = 0, sd = 2)
+
+y <- ifelse(x + error > 10, 1, 0)
+
+sim <- data.frame(x, y)
+head(sim)
+```
+
+La variable `y` es binaria:
+
+- `y = 0`: no ocurre el evento.
+- `y = 1`: ocurre el evento.
+
+**Pregunta 1.** ¿Qué significa que una variable sea binaria?
+
+Respuesta: _________________una variable binaria es una variable que solo puede tomar dos valores 0 y 1_____________________________________________________
+
+
+# 2. Gráfica inicial de los datos
+
+```{r grafica_datos_simulados}
+library(ggplot2)
+
+ggplot(sim, aes(x = x, y = y, color = as.factor(y))) +
+  geom_point(size = 2, alpha = 0.75) +
+  scale_color_manual(values = c("0" = "#2C7FB8", "1" = "#D95F02")) +
+  labs(title = "Datos simulados con respuesta binaria",
+       x = "Variable explicativa x",
+       y = "Respuesta y",
+       color = "Clase") +
+  theme_minimal()
+```
+
+En la gráfica se observa que la variable respuesta no toma muchos valores posibles, sino únicamente 0 o 1. Esto es importante porque una recta no siempre es adecuada para este tipo de respuesta.
+
+**Pregunta 2.** ¿Cuáles son los únicos valores que toma la variable `y`?
+
+Respuesta: ___________________los unicos valores que toma la variable y son 0 y 1 donde 0 indica que el evento no ocurre y 1 indica que si ocurre.___________________________________________________
+
+# 3. Ajuste de regresión lineal simple
+
+Aunque la variable `y` es binaria, primero ajustamos una regresión lineal simple para observar qué problema aparece.
+
+```{r modelo_lineal_simulado}
+modelo_lineal <- lm(y ~ x, data = sim)
+summary(modelo_lineal)
+```
+
+El modelo lineal tiene la forma:
+
+\[
+\hat{y} = b_0 + b_1x.
+\]
+
+Sin embargo, cuando `y` es binaria, el valor ajustado se suele interpretar como una probabilidad. Esto puede generar problemas, porque una recta puede producir valores menores que 0 o mayores que 1.
+
+```{r grafica_modelo_lineal_simulado}
+ggplot(sim, aes(x = x, y = y, color = as.factor(y))) +
+  geom_point(size = 2, alpha = 0.75) +
+  geom_smooth(method = "lm", se = FALSE, color = "#1B9E77", linewidth = 1.2) +
+  scale_color_manual(values = c("0" = "#2C7FB8", "1" = "#D95F02")) +
+  labs(title = "Ajuste con regresión lineal simple",
+       subtitle = "La recta no está restringida al intervalo [0,1]",
+       x = "Variable explicativa x",
+       y = "Respuesta y",
+       color = "Clase") +
+  theme_minimal()
+```
+
+**Pregunta 3.** ¿Por qué una recta puede ser problemática cuando queremos estimar probabilidades?
+
+Respuesta: ___________porque una recta puede generar probabilidades menores que 0 o mayores que 1 y las probabilidades deben estar siempre entre 0 y 1_________
+# 4. Ajuste de regresión logística simple
+
+Ahora ajustamos una regresión logística simple. Este modelo está diseñado para respuestas binarias.
+
+```{r modelo_logistico_simulado}
+modelo_logistico <- glm(y ~ x, data = sim, family = binomial)
+summary(modelo_logistico)
+```
+
+La regresión logística no modela directamente a `y`, sino la probabilidad de que ocurra el evento:
+
+\[
+P(Y=1 \mid X=x).
+\]
+
+Por eso, sus predicciones siempre quedan entre 0 y 1.
+
+```{r predicciones_simuladas}
+sim$prob_logistica <- predict(modelo_logistico, type = "response")
+head(sim)
+```
+
+```{r grafica_modelo_logistico_simulado}
+ggplot(sim, aes(x = x, y = y, color = as.factor(y))) +
+  geom_point(size = 2, alpha = 0.75) +
+  geom_line(aes(y = prob_logistica), color = "#7570B3", linewidth = 1.3) +
+  scale_color_manual(values = c("0" = "#2C7FB8", "1" = "#D95F02")) +
+  labs(title = "Ajuste con regresión logística simple",
+       subtitle = "La curva representa una probabilidad entre 0 y 1",
+       x = "Variable explicativa x",
+       y = "Probabilidad estimada",
+       color = "Clase") +
+  theme_minimal()
+```
+
+**Pregunta 4.** ¿Qué representa la curva logística?
+
+Respuesta: ______________________la curva logistica representa la probabilidad estimada de que ocurra el evento y = 1 para cada valor de x_________________
+
+
+# 5. Comparación de ambos modelos
+
+Calculamos las predicciones de ambos modelos para visualizar la diferencia.
+
+```{r comparacion_predicciones}
+sim$pred_lineal <- predict(modelo_lineal)
+sim$pred_logistica <- predict(modelo_logistico, type = "response")
+
+head(sim)
+```
+
+```{r grafica_comparacion_simulada}
+ggplot(sim, aes(x = x, y = y)) +
+  geom_point(aes(color = as.factor(y)), size = 2, alpha = 0.70) +
+  geom_line(aes(y = pred_lineal), color = "#1B9E77", linewidth = 1.2) +
+  geom_line(aes(y = pred_logistica), color = "#7570B3", linewidth = 1.2) +
+  scale_color_manual(values = c("0" = "#2C7FB8", "1" = "#D95F02")) +
+  labs(title = "Comparación: regresión lineal vs regresión logística",
+       subtitle = "Verde: modelo lineal | Morado: modelo logístico",
+       x = "Variable explicativa x",
+       y = "Valor estimado / probabilidad estimada",
+       color = "Clase") +
+  theme_minimal()
+```
+
+**Interpretación:**
+
+La regresión lineal ajusta una recta. En cambio, la regresión logística ajusta una curva en forma de S. Esta curva es más adecuada cuando queremos estimar probabilidades de una respuesta binaria.
+
+**Interpretación.** Completa la frase:
+**Pregunta 5.** A partir del diagrama de caja, ¿los clientes con default parecen tener balances más altos?
+
+Respuesta: ________________si los clientes con default parecen tener balances mas altos que los clientes sin default.______________________________________________________
+
+
+
+# 6. Ejemplo aplicado: base de datos Default
+
+Ahora usamos la base `Default`, incluida en el paquete `ISLR`. Esta base contiene información de clientes y permite estudiar si una persona cae o no en default.
+
+```{r cargar_default}
+library(ISLR)
+
+datos_originales <- Default
+head(datos_originales)
+```
+
+En esta práctica usaremos únicamente dos variables:
+
+- `balance`: saldo promedio de la tarjeta.
+- `default`: indica si el cliente cayó en default.
+
+```{r preparar_default}
+datos <- data.frame(
+  balance = datos_originales$balance,
+  default = datos_originales$default
+)
+
+datos$default_num <- ifelse(datos$default == "Yes", 1, 0)
+
+head(datos)
+```
+
+# 7. Exploración visual de los datos
+
+```{r boxplot_balance_default}
+ggplot(datos, aes(x = default, y = balance, fill = default)) +
+  geom_boxplot(alpha = 0.75) +
+  scale_fill_manual(values = c("No" = "#2C7FB8", "Yes" = "#D95F02")) +
+  labs(title = "Saldo promedio según condición de default",
+       x = "Default",
+       y = "Balance",
+       fill = "Default") +
+  theme_minimal()
+```
+
+Esta gráfica ayuda a ver si los clientes con default tienden a tener saldos mayores.
+
+```{r dispersion_balance_default}
+ggplot(datos, aes(x = balance, y = default_num, color = default)) +
+  geom_point(alpha = 0.35, size = 1.7) +
+  scale_color_manual(values = c("No" = "#2C7FB8", "Yes" = "#D95F02")) +
+  labs(title = "Relación entre balance y default",
+       x = "Balance",
+       y = "Default numérico",
+       color = "Default") +
+  theme_minimal()
+```
+
+# 8. Regresión lineal simple aplicada a una variable binaria
+
+Ajustamos un modelo lineal usando `balance` como variable explicativa y `default_num` como variable respuesta.
+
+```{r modelo_lineal_default}
+modelo_lineal_default <- lm(default_num ~ balance, data = datos)
+summary(modelo_lineal_default)
+```
+
+```{r grafica_lineal_default}
+ggplot(datos, aes(x = balance, y = default_num, color = default)) +
+  geom_point(alpha = 0.35, size = 1.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "#1B9E77", linewidth = 1.2) +
+  scale_color_manual(values = c("No" = "#2C7FB8", "Yes" = "#D95F02")) +
+  labs(title = "Regresión lineal simple aplicada a default",
+       subtitle = "La recta puede no representar bien una probabilidad",
+       x = "Balance",
+       y = "Default numérico",
+       color = "Default") +
+  theme_minimal()
+```
+
+
+**Pregunta 6.** ¿Qué problema puede tener la recta al interpretarla como probabilidad?
+
+Respuesta: _________________________porque puede dar valores que no son probabilidades validas, como numeros menores que 0 o mayores que 1_____________________________________________
+
+# 9. Regresión logística simple aplicada a Default
+
+Ahora ajustamos el modelo correcto para una respuesta binaria.
+
+```{r modelo_logistico_default}
+modelo_logistico_default <- glm(default_num ~ balance,
+                                data = datos,
+                                family = binomial)
+summary(modelo_logistico_default)
+```
+
+```{r probabilidades_default}
+datos$prob_default <- predict(modelo_logistico_default, type = "response")
+head(datos)
+```
+
+```{r grafica_logistica_default}
+ggplot(datos, aes(x = balance, y = default_num, color = default)) +
+  geom_point(alpha = 0.35, size = 1.7) +
+  geom_line(aes(y = prob_default), color = "#7570B3", linewidth = 1.3) +
+  scale_color_manual(values = c("No" = "#2C7FB8", "Yes" = "#D95F02")) +
+  labs(title = "Regresión logística simple aplicada a default",
+       subtitle = "La curva estima la probabilidad de caer en default",
+       x = "Balance",
+       y = "Probabilidad estimada",
+       color = "Default") +
+  theme_minimal()
+```
+
+**Pregunta 7.** ¿Qué ocurre con la probabilidad de default cuando aumenta `balance`?
+
+Respuesta: ____________________cuando aumenta balance aumenta la probabilidad de que un cliente caiga en default__________________________________________________
+
+# 10. Comparación final en la base Default
+
+```{r comparacion_default}
+datos$pred_lineal <- predict(modelo_lineal_default)
+datos$pred_logistica <- predict(modelo_logistico_default, type = "response")
+
+head(datos)
+```
+
+```{r grafica_comparacion_default}
+ggplot(datos, aes(x = balance, y = default_num)) +
+  geom_point(aes(color = default), alpha = 0.30, size = 1.6) +
+  geom_line(aes(y = pred_lineal), color = "#1B9E77", linewidth = 1.2) +
+  geom_line(aes(y = pred_logistica), color = "#7570B3", linewidth = 1.2) +
+  scale_color_manual(values = c("No" = "#2C7FB8", "Yes" = "#D95F02")) +
+  labs(title = "Comparación final de modelos",
+       subtitle = "Verde: regresión lineal | Morado: regresión logística",
+       x = "Balance",
+       y = "Estimación",
+       color = "Default") +
+  theme_minimal()
+```
+
+# 11. Clasificación sencilla con regresión logística
+
+La regresión logística estima probabilidades. Para convertir esas probabilidades en clases, usamos un punto de corte. El punto de corte más común es 0.5.
+
+```{r clasificacion_simple}
+datos$pred_clase <- ifelse(datos$prob_default >= 0.45, "Yes", "No")
+
+tabla_confusion <- table(Real = datos$default, Predicho = datos$pred_clase)
+tabla_confusion
+```
+
+Calculamos una medida sencilla de desempeño: la exactitud o accuracy.
+
+```{r accuracy_simple}
+accuracy <- mean(datos$default == datos$pred_clase)
+accuracy
+```
+
+**Interpretación:**
+
+El valor de `accuracy` indica la proporción de clientes correctamente clasificados. Sin embargo, cuando una clase es mucho más frecuente que la otra, conviene revisar también la matriz de confusión.
+
+
+
+# 12. Conclusión de la práctica
+
+La regresión lineal simple y la regresión logística simple pueden parecer similares porque ambas usan una variable explicativa. Sin embargo, responden a problemas distintos.
+
+| Modelo | Variable respuesta | Forma del ajuste | Interpretación |
+|---|---|---|---|
+| Regresión lineal simple | Numérica continua | Recta | Estima un valor promedio |
+| Regresión logística simple | Binaria | Curva en forma de S | Estima una probabilidad |
+
+Cuando la respuesta solo puede tomar los valores 0 y 1, la regresión logística suele ser más adecuada, porque sus predicciones se interpretan como probabilidades y siempre quedan entre 0 y 1.
+
+# 13. Actividad para estudiantes
+
+Responde brevemente:
+
+1. ¿Por qué la regresión lineal no es la mejor opción cuando la variable respuesta es binaria?
+#porque puede generar probabilidades menores que 0 o mayores que 1
+2. ¿Qué representa la curva logística?
+#representa la probabilidad estimada de que ocurra el evento
+3. ¿Qué significa una probabilidad estimada cercana a 1?
+#significa que es muy probable que ocurra el evento
+4. ¿Qué significa una probabilidad estimada cercana a 0?
+#significa que es muy poco probable que ocurra el evento
+5. En la base `Default`, ¿qué ocurre con la probabilidad de default cuando aumenta `balance`?
+#cuando aumenta balance, aumenta la probabilidad de default
